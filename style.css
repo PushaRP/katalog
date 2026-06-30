@@ -176,7 +176,13 @@ body{
   margin: 0 auto;
   align-items: center;
   justify-content: center;
-  gap: 24px;
+  gap: 34px;
+}
+.hero-copy{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
 }
 .hero-logo{
   width: 210px; height: 210px;
@@ -210,7 +216,8 @@ body{
   max-width: 56ch;
   color: var(--muted);
   font-size: 15.5px;
-  margin: 24px auto 0;
+  margin: 24px 0 0;
+  text-align: center;
 }
 
 /* ── Main ──────────────────────────────────────────────── */
@@ -796,9 +803,10 @@ body{
 
 @media (max-width: 560px){
   .hero{ padding: 56px 20px 44px; }
-  .hero-top{ gap: 14px; }
+  .hero-top{ gap: 16px; }
   .hero-logo{ width: 120px; height: 120px; }
   .hero-title{ gap: .12em; }
+  .hero-sub{ font-size: 13px; max-width: 34ch; }
   .grid{ grid-template-columns: 1fr; }
   .admin-toolbar.is-visible{ display:flex; justify-content:stretch; }
   .admin-toolbar .admin-btn{ flex:1; }
