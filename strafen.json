@@ -6,7 +6,7 @@
     { "verstoss": "FailRP", "strafe": "2 Tage Ban", "level": 1 },
     { "verstoss": "VDM", "strafe": "3 Tage Ban", "level": 2 },
     { "verstoss": "RDM", "strafe": "3 Tage Ban", "level": 2 },
-    { "verstoss": "Powergaming", "strafe": "3 Tage Ban", "level": 2 }
+    { "verstoss": "Powergaming", "strafe": "3 Tage Ban", "level": 2 },
     { "verstoss": "Metagaming", "strafe": "3 Tage Ban", "level": 2 },
     { "verstoss": "New Life Rule (NLR)", "strafe": "3 Tage Ban", "level": 2 },
     { "verstoss": "FearRP / Value of Life missachtet", "strafe": "3 Tage Ban", "level": 2 },
@@ -27,7 +27,7 @@
     { "verstoss": "Echtgeldhandel (RMT)", "strafe": "Permanenter Ban", "level": 5 },
     { "verstoss": "Banumgehung", "strafe": "Permanenter Ban", "level": 5 },
     { "verstoss": "Drohung (DDoS, Hacking etc.)", "strafe": "Permanenter Ban", "level": 5 },
-    { "verstoss": "Absichtliches Servertrolling", "strafe": "Permanenter Ban", "level": 5 }
+    { "verstoss": "Absichtliches Servertrolling", "strafe": "Permanenter Ban", "level": 5 },
   ],
   "hinweise": [
     "Wiederholungstäter erhalten höhere Strafen.",
