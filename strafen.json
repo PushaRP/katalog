@@ -27,7 +27,7 @@
     { "verstoss": "Echtgeldhandel (RMT)", "strafe": "Permanenter Ban", "level": 5 },
     { "verstoss": "Banumgehung", "strafe": "Permanenter Ban", "level": 5 },
     { "verstoss": "Drohung (DDoS, Hacking etc.)", "strafe": "Permanenter Ban", "level": 5 },
-    { "verstoss": "Absichtliches Servertrolling", "strafe": "Permanenter Ban", "level": 5 },
+    { "verstoss": "Absichtliches Servertrolling", "strafe": "Permanenter Ban", "level": 5 }
   ],
   "hinweise": [
     "Wiederholungstäter erhalten höhere Strafen.",
