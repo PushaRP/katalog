@@ -6,13 +6,13 @@ const hinweiseEl = document.getElementById('hinweiseListe');
 
 let alleVerstoesse = [];
 
-// Level 1-5 -> Farbe (hex) + glow-rgba
+// Level 1-5 -> Farbe (hex) + glow-rgba — von Ember-Gold (leicht) zu Blutrot (schwer)
 const LEVEL_FARBE = {
-  1: { color: '#00e3ff', glow: 'rgba(0,227,255,.45)', bg: 'rgba(0,227,255,.07)' },
-  2: { color: '#39e0a8', glow: 'rgba(57,224,168,.4)', bg: 'rgba(57,224,168,.07)' },
-  3: { color: '#ffb300', glow: 'rgba(255,179,0,.4)',  bg: 'rgba(255,179,0,.07)' },
-  4: { color: '#ff7a3d', glow: 'rgba(255,122,61,.4)', bg: 'rgba(255,122,61,.08)' },
-  5: { color: '#ff2e6d', glow: 'rgba(255,46,109,.5)', bg: 'rgba(255,46,109,.09)' }
+  1: { color: '#e0982f', glow: 'rgba(224,152,47,.45)', bg: 'rgba(224,152,47,.07)' },
+  2: { color: '#e57a2c', glow: 'rgba(229,122,44,.4)',  bg: 'rgba(229,122,44,.07)' },
+  3: { color: '#e15732', glow: 'rgba(225,87,50,.4)',   bg: 'rgba(225,87,50,.08)' },
+  4: { color: '#e3242f', glow: 'rgba(227,36,47,.45)',  bg: 'rgba(227,36,47,.08)' },
+  5: { color: '#ff1320', glow: 'rgba(255,19,32,.55)',  bg: 'rgba(255,19,32,.1)' }
 };
 
 init();
