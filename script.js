@@ -6,6 +6,7 @@ const hinweiseEl = document.getElementById('hinweiseListe');
 
 const openAdminBtn = document.getElementById('openAdminBtn');
 const openManageBtn = document.getElementById('openManageBtn');
+const sortByLevelBtn = document.getElementById('sortByLevelBtn');
 const adminToolbar = document.querySelector('.admin-toolbar');
 const adminOverlay = document.getElementById('adminOverlay');
 const closeAdminBtn = document.getElementById('closeAdminBtn');
@@ -55,6 +56,7 @@ const ADMIN_PASS = 'pushadmin';
 let grundDaten = { stand: '', verstoesse: [], hinweise: [] };
 let alleVerstoesse = [];
 let pendingAdminAction = 'manage';
+let draggedIndex = null;
 
 const LEVEL_FARBE = {
   1: { color: '#e0982f', glow: 'rgba(224,152,47,.45)', bg: 'rgba(224,152,47,.07)' },
@@ -70,7 +72,7 @@ async function init(){
   try{
     const res = await fetch('strafen.json', { cache: 'no-store' });
     grundDaten = await res.json();
-    alleVerstoesse = sortiereVerstoesse(ladeAdminDaten() || normalisiereVerstoesse(grundDaten.verstoesse || []));
+    alleVerstoesse = ladeAdminDaten() || normalisiereVerstoesse(grundDaten.verstoesse || []);
     renderHinweise(grundDaten.hinweise || []);
   }catch(err){
     grid.innerHTML = '<p class="empty">Daten konnten nicht geladen werden. Pruefe, ob strafen.json vorhanden ist.</p>';
@@ -87,6 +89,7 @@ function bindeEvents(){
   searchEl.addEventListener('input', render);
   openAdminBtn.addEventListener('click', () => openAdminGate('new'));
   openManageBtn.addEventListener('click', () => openAdminGate('manage'));
+  sortByLevelBtn.addEventListener('click', sortiereNachSternen);
   closeAdminBtn.addEventListener('click', closeAdmin);
   newEntryBtn.addEventListener('click', leereForm);
   entryForm.addEventListener('submit', speichereEintrag);
@@ -150,6 +153,17 @@ function sortiereAlleVerstoesse(){
   alleVerstoesse = sortiereVerstoesse(alleVerstoesse);
 }
 
+function sortiereNachSternen(){
+  if (!requireAdmin()) return;
+  erstelleBackup('VOR_SORT');
+  sortiereAlleVerstoesse();
+  speichereAdminDaten();
+  logAction('SORT', 'Nach Sternen sortiert');
+  render();
+  renderCommandCenter();
+  renderAdminListe();
+}
+
 function ladeAdminDaten(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -163,7 +177,6 @@ function ladeAdminDaten(){
 }
 
 function speichereAdminDaten(){
-  sortiereAlleVerstoesse();
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
     stand: new Date().toISOString().slice(0, 10),
     verstoesse: alleVerstoesse,
@@ -220,7 +233,11 @@ function isAdminLoggedIn(){
 }
 
 function updateAdminControls(){
-  adminToolbar.classList.toggle('is-visible', isAdminLoggedIn());
+  const loggedIn = isAdminLoggedIn();
+  adminToolbar.classList.toggle('is-visible', loggedIn);
+  grid.querySelectorAll('.card').forEach((card) => {
+    card.draggable = loggedIn;
+  });
 }
 
 function render(){
@@ -236,19 +253,21 @@ function render(){
     const originalIndex = alleVerstoesse.indexOf(v);
     const farbe = LEVEL_FARBE[v.level] || LEVEL_FARBE[1];
     return `
-      <article class="card" data-index="${originalIndex}" style="--card-color:${farbe.color}; --card-glow:${farbe.glow}; --card-bg:${farbe.bg};">
+      <article class="card" data-index="${originalIndex}" draggable="${isAdminLoggedIn()}" style="--card-color:${farbe.color}; --card-glow:${farbe.glow}; --card-bg:${farbe.bg};">
         <h2 class="card-name">${escapeHtml(v.verstoss)}</h2>
         <div class="stars" aria-label="Wanted-Level ${v.level} von 5">${renderSterne(v.level)}</div>
         <span class="card-tag">${escapeHtml(v.strafe)}</span>
       </article>
     `;
   }).join('');
+
+  bindeDragDrop(grid.querySelectorAll('.card'));
 }
 
 function renderAdminListe(){
   adminListEl.innerHTML = alleVerstoesse.map((v, index) => {
     return `
-      <div class="admin-row">
+      <div class="admin-row" data-index="${index}" draggable="true">
         <div>
           <p class="admin-row-title">${escapeHtml(v.verstoss)}</p>
           <div class="admin-row-meta">${v.level} Sterne · ${escapeHtml(v.strafe)}</div>
@@ -268,6 +287,64 @@ function renderAdminListe(){
   adminListEl.querySelectorAll('[data-delete]').forEach((btn) => {
     btn.addEventListener('click', () => loescheEintrag(Number(btn.dataset.delete)));
   });
+
+  bindeDragDrop(adminListEl.querySelectorAll('.admin-row'));
+}
+
+function bindeDragDrop(items){
+  items.forEach((item) => {
+    item.addEventListener('dragstart', (ev) => {
+      if (!requireAdmin()) {
+        ev.preventDefault();
+        return;
+      }
+      draggedIndex = Number(item.dataset.index);
+      item.classList.add('is-dragging');
+      ev.dataTransfer.effectAllowed = 'move';
+      ev.dataTransfer.setData('text/plain', String(draggedIndex));
+    });
+
+    item.addEventListener('dragover', (ev) => {
+      if (draggedIndex === null) return;
+      ev.preventDefault();
+      item.classList.add('is-drop-target');
+      ev.dataTransfer.dropEffect = 'move';
+    });
+
+    item.addEventListener('dragleave', () => {
+      item.classList.remove('is-drop-target');
+    });
+
+    item.addEventListener('dragend', () => {
+      item.classList.remove('is-dragging', 'is-drop-target');
+      draggedIndex = null;
+    });
+
+    item.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      item.classList.remove('is-drop-target');
+      const targetIndex = Number(item.dataset.index);
+      tauscheEintraege(draggedIndex, targetIndex);
+      draggedIndex = null;
+    });
+  });
+}
+
+function tauscheEintraege(vonIndex, zuIndex){
+  if (!requireAdmin()) return;
+  if (!Number.isInteger(vonIndex) || !Number.isInteger(zuIndex)) return;
+  if (vonIndex === zuIndex) return;
+  if (!alleVerstoesse[vonIndex] || !alleVerstoesse[zuIndex]) return;
+
+  erstelleBackup('VOR_REORDER');
+  const vonName = alleVerstoesse[vonIndex].verstoss;
+  const zuName = alleVerstoesse[zuIndex].verstoss;
+  [alleVerstoesse[vonIndex], alleVerstoesse[zuIndex]] = [alleVerstoesse[zuIndex], alleVerstoesse[vonIndex]];
+  speichereAdminDaten();
+  logAction('REORDER', `${vonName} mit ${zuName} getauscht`);
+  render();
+  renderCommandCenter();
+  renderAdminListe();
 }
 
 function openAdminGate(action = 'manage'){
@@ -401,7 +478,6 @@ function speichereEintrag(ev){
     logAction('ADD', `Eintrag hinzugefuegt: ${eintrag.verstoss}`);
   }
 
-  sortiereAlleVerstoesse();
   speichereAdminDaten();
   render();
   renderCommandCenter();
@@ -429,7 +505,7 @@ function resetAdminDaten(){
   if (!confirm('Alle Admin-Aenderungen verwerfen und strafen.json neu laden?')) return;
   erstelleBackup('VOR_RESET');
   localStorage.removeItem(STORAGE_KEY);
-  alleVerstoesse = sortiereVerstoesse(normalisiereVerstoesse(grundDaten.verstoesse || []));
+  alleVerstoesse = normalisiereVerstoesse(grundDaten.verstoesse || []);
   logAction('RESET', 'Admin-Aenderungen verworfen');
   render();
   renderCommandCenter();
@@ -447,7 +523,7 @@ function stelleBackupWiederHer(){
   const zeit = formatiereBackupZeit(backup);
   if (!confirm(`Backup von ${zeit} wiederherstellen?\n\nAktuelle Eintraege werden vorher gesichert.`)) return;
   erstelleBackup('VOR_RESTORE');
-  alleVerstoesse = sortiereVerstoesse(backup.verstoesse);
+  alleVerstoesse = backup.verstoesse;
   speichereAdminDaten();
   logAction('RESTORE', `Backup wiederhergestellt: ${zeit}`);
   render();
@@ -460,7 +536,7 @@ function exportiereJson(){
   if (!requireAdmin()) return;
   const daten = {
     stand: new Date().toISOString().slice(0, 10),
-    verstoesse: sortiereVerstoesse(alleVerstoesse),
+    verstoesse: alleVerstoesse,
     hinweise: grundDaten.hinweise || []
   };
   const blob = new Blob([JSON.stringify(daten, null, 2)], { type: 'application/json' });

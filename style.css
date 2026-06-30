@@ -152,17 +152,19 @@ body{
   text-align: center;
 }
 .hero-eyebrow{
-  display:inline-flex; align-items:center; gap:8px;
+  display: flex;
+  width: fit-content;
+  align-items:center; gap:10px;
+  margin: 0 auto 28px;
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: 14px;
   letter-spacing: .18em;
   text-transform: uppercase;
   color: var(--cyan);
-  margin-bottom: 22px;
   justify-content: center;
 }
 .dot{
-  width:7px; height:7px; border-radius:50%;
+  width:9px; height:9px; border-radius:50%;
   background: var(--pink);
   box-shadow: 0 0 8px var(--pink);
   animation: pulse 1.8s ease-in-out infinite;
@@ -282,6 +284,20 @@ body{
   border-color: var(--card-color, var(--cyan));
   transform: translateY(-2px);
   box-shadow: 0 8px 28px -10px var(--card-glow, rgba(224,152,47,.3));
+}
+.card[draggable="true"],
+.admin-row[draggable="true"]{
+  cursor: grab;
+}
+.card.is-dragging,
+.admin-row.is-dragging{
+  cursor: grabbing;
+  opacity: .45;
+}
+.card.is-drop-target,
+.admin-row.is-drop-target{
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 2px rgba(224,152,47,.22), 0 0 26px rgba(224,152,47,.18);
 }
 @keyframes rise{
   from{ opacity:0; transform: translateY(8px); }
