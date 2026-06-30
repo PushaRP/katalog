@@ -70,7 +70,7 @@ async function init(){
   try{
     const res = await fetch('strafen.json', { cache: 'no-store' });
     grundDaten = await res.json();
-    alleVerstoesse = ladeAdminDaten() || normalisiereVerstoesse(grundDaten.verstoesse || []);
+    alleVerstoesse = sortiereVerstoesse(ladeAdminDaten() || normalisiereVerstoesse(grundDaten.verstoesse || []));
     renderHinweise(grundDaten.hinweise || []);
   }catch(err){
     grid.innerHTML = '<p class="empty">Daten konnten nicht geladen werden. Pruefe, ob strafen.json vorhanden ist.</p>';
@@ -138,6 +138,18 @@ function normalisiereVerstoesse(verstoesse){
   })).filter(v => v.verstoss && v.strafe);
 }
 
+function sortiereVerstoesse(verstoesse){
+  return [...verstoesse].sort((a, b) => {
+    const levelDiff = begrenzeLevel(a.level) - begrenzeLevel(b.level);
+    if (levelDiff !== 0) return levelDiff;
+    return a.verstoss.localeCompare(b.verstoss, 'de', { sensitivity: 'base' });
+  });
+}
+
+function sortiereAlleVerstoesse(){
+  alleVerstoesse = sortiereVerstoesse(alleVerstoesse);
+}
+
 function ladeAdminDaten(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -151,6 +163,7 @@ function ladeAdminDaten(){
 }
 
 function speichereAdminDaten(){
+  sortiereAlleVerstoesse();
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
     stand: new Date().toISOString().slice(0, 10),
     verstoesse: alleVerstoesse,
@@ -388,6 +401,7 @@ function speichereEintrag(ev){
     logAction('ADD', `Eintrag hinzugefuegt: ${eintrag.verstoss}`);
   }
 
+  sortiereAlleVerstoesse();
   speichereAdminDaten();
   render();
   renderCommandCenter();
@@ -415,7 +429,7 @@ function resetAdminDaten(){
   if (!confirm('Alle Admin-Aenderungen verwerfen und strafen.json neu laden?')) return;
   erstelleBackup('VOR_RESET');
   localStorage.removeItem(STORAGE_KEY);
-  alleVerstoesse = normalisiereVerstoesse(grundDaten.verstoesse || []);
+  alleVerstoesse = sortiereVerstoesse(normalisiereVerstoesse(grundDaten.verstoesse || []));
   logAction('RESET', 'Admin-Aenderungen verworfen');
   render();
   renderCommandCenter();
@@ -433,7 +447,7 @@ function stelleBackupWiederHer(){
   const zeit = formatiereBackupZeit(backup);
   if (!confirm(`Backup von ${zeit} wiederherstellen?\n\nAktuelle Eintraege werden vorher gesichert.`)) return;
   erstelleBackup('VOR_RESTORE');
-  alleVerstoesse = backup.verstoesse;
+  alleVerstoesse = sortiereVerstoesse(backup.verstoesse);
   speichereAdminDaten();
   logAction('RESTORE', `Backup wiederhergestellt: ${zeit}`);
   render();
@@ -446,7 +460,7 @@ function exportiereJson(){
   if (!requireAdmin()) return;
   const daten = {
     stand: new Date().toISOString().slice(0, 10),
-    verstoesse: alleVerstoesse,
+    verstoesse: sortiereVerstoesse(alleVerstoesse),
     hinweise: grundDaten.hinweise || []
   };
   const blob = new Blob([JSON.stringify(daten, null, 2)], { type: 'application/json' });

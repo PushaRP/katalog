@@ -179,7 +179,7 @@ body{
   gap: 24px;
 }
 .hero-logo{
-  width: 96px; height: 96px;
+  width: 210px; height: 210px;
   object-fit: contain;
   flex: none;
   filter: drop-shadow(0 0 22px rgba(227,16,31,.35));
@@ -797,7 +797,7 @@ body{
 @media (max-width: 560px){
   .hero{ padding: 56px 20px 44px; }
   .hero-top{ gap: 14px; }
-  .hero-logo{ width: 64px; height: 64px; }
+  .hero-logo{ width: 120px; height: 120px; }
   .hero-title{ gap: .12em; }
   .grid{ grid-template-columns: 1fr; }
   .admin-toolbar.is-visible{ display:flex; justify-content:stretch; }
