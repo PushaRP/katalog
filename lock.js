@@ -1,7 +1,7 @@
 // ── Team-Passwortschutz ──────────────────────────────────────────
 // Passwort hier ändern. Liegt im Klartext im Code (kein echter Schutz,
 // siehe README), reicht aber, um Außenstehende fernzuhalten.
-const TEAM_PASSWORT = "andereswort";
+const TEAM_PASSWORT = "pushateam";
 
 const SESSION_KEY = "bannkatalog_freigeschaltet";
 
