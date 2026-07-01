@@ -1,8 +1,5 @@
-// ── Firebase Konfiguration ──────────────────────────────────────
-// Diese Datei verbindet die Seite mit eurer gemeinsamen Firestore-Datenbank.
-// Der API-Key hier ist ÖFFENTLICH sichtbar per Design von Firebase — das ist
-// normal und kein Sicherheitsproblem für sich. Der eigentliche Schutz kommt
-// über die Firestore-Sicherheitsregeln in der Firebase Console (siehe README).
+import { db, KATALOG_DOC, SETTINGS_DOC } from "./firebase-config.js";
+import { onSnapshot, getDoc, setDoc } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDviEDCXO8UC4wAsN-v72G1bVyQu2rG1qk",
@@ -10,13 +7,12 @@ const firebaseConfig = {
   projectId: "pusharp-71b49",
   storageBucket: "pusharp-71b49.firebasestorage.app",
   messagingSenderId: "879433057798",
-  appId: "1:879433057798:web:6ca6b67c8c656fa9306587",
-  measurementId: "G-9RY36C7YGW"
+  appId: "1:879433057798:web:6ca6b67c8c656fa9306587"
 };
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app);
 
-// Ein einziges Dokument haelt den kompletten Katalog.
-// Aenderung durch irgendein Teammitglied -> alle anderen sehen es live.
-const KATALOG_DOC = db.collection('katalog').doc('daten');
+// Firestore Docs
+export const KATALOG_DOC = doc(db, "katalog", "daten");
+export const SETTINGS_DOC = doc(db, "settings", "admin");
