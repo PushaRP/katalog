@@ -265,6 +265,7 @@ body{
   align-items: stretch;
   grid-auto-rows: 122px;
   gap: 10px;
+  perspective: 900px;
 }
 
 .card{
@@ -277,13 +278,35 @@ body{
   border-radius: 8px;
   padding: 13px 14px;
   overflow: visible;
-  transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+  transform-style: preserve-3d;
+  transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease, opacity .18s ease;
   animation: rise .35s ease both;
 }
 .card:hover{
   border-color: var(--card-color, var(--cyan));
-  transform: translateY(-2px);
+  transform: translateY(-3px) rotateX(2deg) rotateY(-2deg);
   box-shadow: 0 8px 28px -10px var(--card-glow, rgba(224,152,47,.3));
+}
+.card-edit-btn{
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  border: 1px solid rgba(224,152,47,.35);
+  background: rgba(12,7,7,.72);
+  color: var(--cyan);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  border-radius: 4px;
+  padding: 5px 7px;
+  cursor: pointer;
+}
+.card-edit-btn:hover{
+  border-color: var(--pink);
+  color: #fff;
+  background: var(--pink);
 }
 .card[draggable="true"],
 .admin-row[draggable="true"]{
@@ -293,12 +316,42 @@ body{
 .admin-row.is-dragging{
   cursor: grabbing;
   opacity: .45;
+  transform: scale(.96) rotateX(8deg) rotateY(-8deg);
 }
-.card.is-drop-target,
-.admin-row.is-drop-target{
+.card.is-drop-before,
+.card.is-drop-after,
+.admin-row.is-drop-before,
+.admin-row.is-drop-after{
   border-color: var(--cyan);
-  box-shadow: 0 0 0 2px rgba(224,152,47,.22), 0 0 26px rgba(224,152,47,.18);
+  transform: translateY(-4px) scale(1.03) rotateX(4deg);
+  box-shadow: 0 0 0 2px rgba(224,152,47,.22), 0 18px 42px -18px rgba(224,152,47,.35);
 }
+.card.is-drop-before::before,
+.card.is-drop-after::after{
+  content: "";
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--cyan);
+  box-shadow: 0 0 14px rgba(224,152,47,.7);
+}
+.card.is-drop-before::before{ left: -7px; }
+.card.is-drop-after::after{ right: -7px; }
+.admin-row.is-drop-before::before,
+.admin-row.is-drop-after::after{
+  content: "";
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--cyan);
+  box-shadow: 0 0 14px rgba(224,152,47,.7);
+}
+.admin-row.is-drop-before::before{ top: -6px; }
+.admin-row.is-drop-after::after{ bottom: -6px; }
 @keyframes rise{
   from{ opacity:0; transform: translateY(8px); }
   to{ opacity:1; transform: translateY(0); }
@@ -314,6 +367,7 @@ body{
   line-height: 1.12;
   min-height: 32px;
   max-height: none;
+  padding-right: 48px;
   color: var(--text);
   overflow-wrap: anywhere;
   overflow: visible;
@@ -639,12 +693,51 @@ body{
   border-bottom:1px solid var(--line);
 }
 .activity-panel,
+.security-panel,
 .entry-editor{
   background:rgba(29,18,18,.55);
   border:1px solid var(--line);
   border-radius:6px;
   margin-bottom:18px;
 }
+.password-grid{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr)) auto;
+  gap:12px;
+  align-items:end;
+  padding:0 18px 18px;
+}
+.password-grid label{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.password-grid span{
+  font-family:var(--mono);
+  font-size:10px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:var(--muted);
+}
+.password-grid input{
+  width:100%;
+  background:var(--panel-2);
+  border:1px solid var(--line);
+  color:var(--text);
+  font-family:var(--body);
+  font-size:14px;
+  padding:11px 12px;
+  border-radius:4px;
+  outline:none;
+}
+.password-grid input:focus{ border-color:var(--cyan); }
+.password-status{
+  margin:0 18px 18px;
+  color:var(--pink);
+  font-family:var(--mono);
+  font-size:11px;
+}
+.password-status.is-ok{ color:var(--cyan); }
 .admin-list-head.compact{ padding:16px 18px 10px; }
 .activity-log{
   display:flex;
@@ -730,6 +823,7 @@ body{
   gap:8px;
 }
 .admin-row{
+  position:relative;
   display:grid;
   grid-template-columns:1fr auto;
   gap:12px;
@@ -830,6 +924,7 @@ body{
   .admin-head{ padding:20px 18px 16px; }
   .admin-dashboard{ padding:18px; }
   .command-top{ flex-direction:column; }
+  .password-grid{ grid-template-columns:1fr; }
   .admin-form{ grid-template-columns:1fr; padding:18px; }
   .admin-list-head{ align-items:flex-start; flex-direction:column; padding:18px 18px 10px; }
   .admin-list{ padding:0 18px 18px; }
