@@ -6,7 +6,7 @@
 <title>BAN KATALOG  PUSHA UNDERWORLD RP</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=19">
+<link rel="stylesheet" href="style.css?v=21">
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
@@ -167,6 +167,28 @@
         <button type="button" class="admin-btn danger" id="dashResetBtn">Reset</button>
       </div>
 
+      <div class="security-panel">
+        <div class="admin-list-head compact">
+          <h3>Admin Passwort</h3>
+        </div>
+        <div class="password-grid">
+          <label>
+            <span>Aktuelles Passwort</span>
+            <input id="currentAdminPass" type="password" autocomplete="current-password">
+          </label>
+          <label>
+            <span>Neues Passwort</span>
+            <input id="newAdminPass" type="password" autocomplete="new-password">
+          </label>
+          <label>
+            <span>Neues Passwort wiederholen</span>
+            <input id="repeatAdminPass" type="password" autocomplete="new-password">
+          </label>
+          <button type="button" class="admin-btn primary" id="changeAdminPassBtn">Passwort ändern</button>
+        </div>
+        <p class="password-status" id="passwordStatus" hidden></p>
+      </div>
+
       <div class="activity-panel">
         <div class="admin-list-head compact">
           <h3>Aktivitaetsprotokoll</h3>
@@ -224,6 +246,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script src="lock.js"></script>
-<script src="script.js?v=10"></script>
+<script src="script.js?v=13"></script>
 </body>
 </html>
