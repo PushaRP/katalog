@@ -72,13 +72,14 @@
   <p class="empty" id="emptyState" hidden>— Keine Treffer im Register —</p>
 
   <section class="log">
+    <h2 class="log-title">// HINWEISE.LOG</h2>
     <ul id="hinweiseListe" class="log-list"></ul>
   </section>
 
 </main>
 
 <footer class="footer">
-  <p>Copyright by PUSHA UNDERWORLD RP</p>
+  <p>STRAFREGISTER GEPFLEGT IN <code>strafen.json</code> · PUSHA UNDERWORLD RP</p>
 </footer>
 
 </div>
@@ -186,6 +187,25 @@
           <button type="button" class="admin-btn primary" id="changeAdminPassBtn">Passwort ändern</button>
         </div>
         <p class="password-status" id="passwordStatus" hidden></p>
+        <div class="admin-list-head compact">
+          <h3>Startseiten Passwort</h3>
+        </div>
+        <div class="password-grid">
+          <label>
+            <span>Aktuelles Passwort</span>
+            <input id="currentTeamPass" type="password" autocomplete="current-password">
+          </label>
+          <label>
+            <span>Neues Passwort</span>
+            <input id="newTeamPass" type="password" autocomplete="new-password">
+          </label>
+          <label>
+            <span>Neues Passwort wiederholen</span>
+            <input id="repeatTeamPass" type="password" autocomplete="new-password">
+          </label>
+          <button type="button" class="admin-btn primary" id="changeTeamPassBtn">Startpasswort ändern</button>
+        </div>
+        <p class="password-status" id="teamPasswordStatus" hidden></p>
       </div>
 
       <div class="activity-panel">
@@ -241,10 +261,10 @@
   </div>
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="firebase-config.js"></script>
+<script src="firebase-config.js?v=3"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script src="lock.js"></script>
-<script src="script.js?v=13"></script>
+<script src="script.js?v=15"></script>
 </body>
 </html>
