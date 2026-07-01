@@ -39,11 +39,6 @@ const dashRestoreBtn = document.getElementById('dashRestoreBtn');
 const dashResetBtn = document.getElementById('dashResetBtn');
 const clearLogBtn = document.getElementById('clearLogBtn');
 const activityLogEl = document.getElementById('activityLog');
-const currentAdminPassEl = document.getElementById('currentAdminPass');
-const newAdminPassEl = document.getElementById('newAdminPass');
-const repeatAdminPassEl = document.getElementById('repeatAdminPass');
-const changeAdminPassBtn = document.getElementById('changeAdminPassBtn');
-const passwordStatusEl = document.getElementById('passwordStatus');
 const shortcutLogin = document.getElementById('shortcutLogin');
 const shortcutCloseBtn = document.getElementById('shortcutCloseBtn');
 const shortcutAdminUserEl = document.getElementById('shortcutAdminUser');
@@ -51,20 +46,16 @@ const shortcutAdminPasswordEl = document.getElementById('shortcutAdminPassword')
 const shortcutLoginBtn = document.getElementById('shortcutLoginBtn');
 const shortcutLoginError = document.getElementById('shortcutLoginError');
 
-const STORAGE_KEY = 'bannkatalog_admin_daten_v1';
 const ADMIN_SESSION_KEY = 'bannkatalog_admin_session_v1';
-const ADMIN_PASS_KEY = 'bannkatalog_admin_pass_v1';
-const ADMIN_PASS_BASE_KEY = 'bannkatalog_admin_pass_base_v1';
 const LOG_KEY = 'bannkatalog_admin_log_v1';
 const BACKUP_KEY = 'bannkatalog_admin_backup_v1';
 const ADMIN_USER = 'admin';
-const DEFAULT_ADMIN_PASS = 'pushadmin';
+const ADMIN_PASS = 'pushadmin';
 
 let grundDaten = { stand: '', verstoesse: [], hinweise: [] };
 let alleVerstoesse = [];
 let pendingAdminAction = 'manage';
 let draggedIndex = null;
-let dragPlaceAfter = false;
 
 const LEVEL_FARBE = {
   1: { color: '#e0982f', glow: 'rgba(224,152,47,.45)', bg: 'rgba(224,152,47,.07)' },
@@ -78,12 +69,27 @@ init();
 
 async function init(){
   try{
-    const res = await fetch('strafen.json', { cache: 'no-store' });
-    grundDaten = await res.json();
-    alleVerstoesse = ladeAdminDaten() || normalisiereVerstoesse(grundDaten.verstoesse || []);
+    const snap = await KATALOG_DOC.get();
+
+    if (snap.exists) {
+      const daten = snap.data();
+      grundDaten = daten;
+      alleVerstoesse = normalisiereVerstoesse(daten.verstoesse || []);
+    } else {
+      // Erstes Mal: Firestore-Dokument existiert noch nicht -> aus strafen.json befuellen
+      const res = await fetch('strafen.json', { cache: 'no-store' });
+      grundDaten = await res.json();
+      alleVerstoesse = normalisiereVerstoesse(grundDaten.verstoesse || []);
+      await KATALOG_DOC.set({
+        stand: grundDaten.stand || new Date().toISOString().slice(0, 10),
+        verstoesse: alleVerstoesse,
+        hinweise: grundDaten.hinweise || []
+      });
+    }
+
     renderHinweise(grundDaten.hinweise || []);
   }catch(err){
-    grid.innerHTML = '<p class="empty">Daten konnten nicht geladen werden. Pruefe, ob strafen.json vorhanden ist.</p>';
+    grid.innerHTML = '<p class="empty">Verbindung zur Datenbank fehlgeschlagen. Pruefe Firestore-Regeln und Internetverbindung.</p>';
     console.error(err);
     return;
   }
@@ -91,6 +97,24 @@ async function init(){
   render();
   bindeEvents();
   updateAdminControls();
+  starteLiveSync();
+}
+
+// Hoert auf Aenderungen in Firestore und aktualisiert die Seite bei JEDEM
+// Teammitglied automatisch -> echte gemeinsame Datenbank statt lokalem Speicher.
+function starteLiveSync(){
+  KATALOG_DOC.onSnapshot((snap) => {
+    if (!snap.exists) return;
+    const daten = snap.data();
+    grundDaten = daten;
+    alleVerstoesse = normalisiereVerstoesse(daten.verstoesse || []);
+    renderHinweise(daten.hinweise || []);
+    render();
+    renderCommandCenter();
+    renderAdminListe();
+  }, (err) => {
+    console.error('Live-Sync Fehler:', err);
+  });
 }
 
 function bindeEvents(){
@@ -114,7 +138,6 @@ function bindeEvents(){
   dashRestoreBtn.addEventListener('click', stelleBackupWiederHer);
   dashResetBtn.addEventListener('click', resetAdminDaten);
   clearLogBtn.addEventListener('click', clearActivityLog);
-  changeAdminPassBtn.addEventListener('click', aendereAdminPasswort);
   shortcutLoginBtn.addEventListener('click', doShortcutLogin);
   shortcutCloseBtn.addEventListener('click', hideShortcutLogin);
   shortcutAdminPasswordEl.addEventListener('keydown', (ev) => {
@@ -173,24 +196,18 @@ function sortiereNachSternen(){
   renderAdminListe();
 }
 
-function ladeAdminDaten(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return normalisiereVerstoesse(parsed.verstoesse || parsed || []);
-  }catch(err){
-    console.warn('Admin-Daten konnten nicht gelesen werden:', err);
-    return null;
-  }
-}
-
 function speichereAdminDaten(){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+  const payload = {
     stand: new Date().toISOString().slice(0, 10),
     verstoesse: alleVerstoesse,
     hinweise: grundDaten.hinweise || []
-  }, null, 2));
+  };
+  // In die gemeinsame Firestore-Datenbank schreiben -> alle Teammitglieder
+  // bekommen die Aenderung ueber starteLiveSync() automatisch mit.
+  KATALOG_DOC.set(payload).catch((err) => {
+    console.error('Speichern in Firestore fehlgeschlagen:', err);
+    alert('Speichern fehlgeschlagen — Internetverbindung oder Firestore-Regeln pruefen.');
+  });
 }
 
 function erstelleBackup(reason = 'MANUELL'){
@@ -241,61 +258,6 @@ function isAdminLoggedIn(){
   }
 }
 
-function getAdminPass(){
-  const savedBasePass = localStorage.getItem(ADMIN_PASS_BASE_KEY);
-  if (savedBasePass && savedBasePass !== DEFAULT_ADMIN_PASS) {
-    localStorage.removeItem(ADMIN_PASS_KEY);
-    localStorage.setItem(ADMIN_PASS_BASE_KEY, DEFAULT_ADMIN_PASS);
-    return DEFAULT_ADMIN_PASS;
-  }
-
-  return localStorage.getItem(ADMIN_PASS_KEY) || DEFAULT_ADMIN_PASS;
-}
-
-function clearPasswordForm(){
-  currentAdminPassEl.value = '';
-  newAdminPassEl.value = '';
-  repeatAdminPassEl.value = '';
-}
-
-function setPasswordStatus(message, type = 'error'){
-  passwordStatusEl.textContent = message;
-  passwordStatusEl.hidden = false;
-  passwordStatusEl.classList.toggle('is-ok', type === 'ok');
-}
-
-function aendereAdminPasswort(){
-  if (!requireAdmin()) return;
-
-  const currentPass = currentAdminPassEl.value;
-  const newPass = newAdminPassEl.value.trim();
-  const repeatPass = repeatAdminPassEl.value.trim();
-
-  if (currentPass !== getAdminPass()) {
-    setPasswordStatus('Aktuelles Passwort ist falsch.');
-    logAction('PASS-FAIL', 'Falsches aktuelles Passwort');
-    return;
-  }
-
-  if (newPass.length < 4) {
-    setPasswordStatus('Neues Passwort muss mindestens 4 Zeichen haben.');
-    return;
-  }
-
-  if (newPass !== repeatPass) {
-    setPasswordStatus('Neues Passwort stimmt nicht ueberein.');
-    return;
-  }
-
-  localStorage.setItem(ADMIN_PASS_KEY, newPass);
-  localStorage.setItem(ADMIN_PASS_BASE_KEY, DEFAULT_ADMIN_PASS);
-  sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ user: ADMIN_USER, ts: Date.now() }));
-  clearPasswordForm();
-  setPasswordStatus('Passwort wurde geaendert.', 'ok');
-  logAction('PASS', 'Admin Passwort geaendert');
-  renderCommandCenter();
-}
-
 function updateAdminControls(){
   const loggedIn = isAdminLoggedIn();
   adminToolbar.classList.toggle('is-visible', loggedIn);
@@ -318,7 +280,6 @@ function render(){
     const farbe = LEVEL_FARBE[v.level] || LEVEL_FARBE[1];
     return `
       <article class="card" data-index="${originalIndex}" draggable="${isAdminLoggedIn()}" style="--card-color:${farbe.color}; --card-glow:${farbe.glow}; --card-bg:${farbe.bg};">
-        ${isAdminLoggedIn() ? `<button type="button" class="card-edit-btn" data-card-edit="${originalIndex}">EDIT</button>` : ''}
         <h2 class="card-name">${escapeHtml(v.verstoss)}</h2>
         <div class="stars" aria-label="Wanted-Level ${v.level} von 5">${renderSterne(v.level)}</div>
         <span class="card-tag">${escapeHtml(v.strafe)}</span>
@@ -327,15 +288,6 @@ function render(){
   }).join('');
 
   bindeDragDrop(grid.querySelectorAll('.card'));
-  grid.querySelectorAll('[data-card-edit]').forEach((btn) => {
-    btn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      const index = Number(btn.dataset.cardEdit);
-      adminOverlay.classList.add('open');
-      zeigeDashboard();
-      ladeInForm(index);
-    });
-  });
 }
 
 function renderAdminListe(){
@@ -368,16 +320,11 @@ function renderAdminListe(){
 function bindeDragDrop(items){
   items.forEach((item) => {
     item.addEventListener('dragstart', (ev) => {
-      if (ev.target.closest('button')) {
-        ev.preventDefault();
-        return;
-      }
       if (!requireAdmin()) {
         ev.preventDefault();
         return;
       }
       draggedIndex = Number(item.dataset.index);
-      dragPlaceAfter = false;
       item.classList.add('is-dragging');
       ev.dataTransfer.effectAllowed = 'move';
       ev.dataTransfer.setData('text/plain', String(draggedIndex));
@@ -386,52 +333,41 @@ function bindeDragDrop(items){
     item.addEventListener('dragover', (ev) => {
       if (draggedIndex === null) return;
       ev.preventDefault();
-      const rect = item.getBoundingClientRect();
-      const horizontalGrid = item.classList.contains('card');
-      dragPlaceAfter = horizontalGrid
-        ? ev.clientX > rect.left + rect.width / 2
-        : ev.clientY > rect.top + rect.height / 2;
-      item.classList.toggle('is-drop-before', !dragPlaceAfter);
-      item.classList.toggle('is-drop-after', dragPlaceAfter);
+      item.classList.add('is-drop-target');
       ev.dataTransfer.dropEffect = 'move';
     });
 
     item.addEventListener('dragleave', () => {
-      item.classList.remove('is-drop-before', 'is-drop-after');
+      item.classList.remove('is-drop-target');
     });
 
     item.addEventListener('dragend', () => {
-      item.classList.remove('is-dragging', 'is-drop-before', 'is-drop-after');
+      item.classList.remove('is-dragging', 'is-drop-target');
       draggedIndex = null;
-      dragPlaceAfter = false;
     });
 
     item.addEventListener('drop', (ev) => {
       ev.preventDefault();
-      item.classList.remove('is-drop-before', 'is-drop-after');
+      item.classList.remove('is-drop-target');
       const targetIndex = Number(item.dataset.index);
-      verschiebeEintrag(draggedIndex, targetIndex, dragPlaceAfter);
+      tauscheEintraege(draggedIndex, targetIndex);
       draggedIndex = null;
-      dragPlaceAfter = false;
     });
   });
 }
 
-function verschiebeEintrag(vonIndex, zielIndex, nachZiel){
+function tauscheEintraege(vonIndex, zuIndex){
   if (!requireAdmin()) return;
-  if (!Number.isInteger(vonIndex) || !Number.isInteger(zielIndex)) return;
-  if (vonIndex === zielIndex) return;
-  if (!alleVerstoesse[vonIndex] || !alleVerstoesse[zielIndex]) return;
+  if (!Number.isInteger(vonIndex) || !Number.isInteger(zuIndex)) return;
+  if (vonIndex === zuIndex) return;
+  if (!alleVerstoesse[vonIndex] || !alleVerstoesse[zuIndex]) return;
 
   erstelleBackup('VOR_REORDER');
-  const [eintrag] = alleVerstoesse.splice(vonIndex, 1);
-  let insertIndex = zielIndex;
-  if (vonIndex < zielIndex) insertIndex -= 1;
-  if (nachZiel) insertIndex += 1;
-  insertIndex = Math.max(0, Math.min(insertIndex, alleVerstoesse.length));
-  alleVerstoesse.splice(insertIndex, 0, eintrag);
+  const vonName = alleVerstoesse[vonIndex].verstoss;
+  const zuName = alleVerstoesse[zuIndex].verstoss;
+  [alleVerstoesse[vonIndex], alleVerstoesse[zuIndex]] = [alleVerstoesse[zuIndex], alleVerstoesse[vonIndex]];
   speichereAdminDaten();
-  logAction('REORDER', `${eintrag.verstoss} verschoben`);
+  logAction('REORDER', `${vonName} mit ${zuName} getauscht`);
   render();
   renderCommandCenter();
   renderAdminListe();
@@ -463,8 +399,6 @@ function zeigeLogin(){
 function zeigeDashboard(){
   adminLogin.hidden = true;
   adminDashboard.hidden = false;
-  clearPasswordForm();
-  passwordStatusEl.hidden = true;
   renderCommandCenter();
   renderAdminListe();
   if (pendingAdminAction === 'new') leereForm();
@@ -485,11 +419,10 @@ function doShortcutLogin(){
 }
 
 function attemptAdminLogin(user, pass, errorEl, passwordEl, openDashboardAfterLogin){
-  if (user === ADMIN_USER && pass === getAdminPass()) {
+  if (user === ADMIN_USER && pass === ADMIN_PASS) {
     sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ user, ts: Date.now() }));
     logAction('LOGIN', 'Admin eingeloggt');
     updateAdminControls();
-    render();
     hideShortcutLogin();
     if (openDashboardAfterLogin) {
       adminOverlay.classList.add('open');
@@ -506,7 +439,6 @@ function doAdminLogout(){
   sessionStorage.removeItem(ADMIN_SESSION_KEY);
   logAction('LOGOUT', 'Admin ausgeloggt');
   updateAdminControls();
-  render();
   closeAdmin();
   showShortcutLogin();
 }
@@ -594,13 +526,21 @@ function loescheEintrag(index){
   leereForm();
 }
 
-function resetAdminDaten(){
+async function resetAdminDaten(){
   if (!requireAdmin()) return;
-  if (!confirm('Alle Admin-Aenderungen verwerfen und strafen.json neu laden?')) return;
+  if (!confirm('Alle Aenderungen verwerfen und strafen.json neu in die Datenbank laden?')) return;
   erstelleBackup('VOR_RESET');
-  localStorage.removeItem(STORAGE_KEY);
-  alleVerstoesse = normalisiereVerstoesse(grundDaten.verstoesse || []);
-  logAction('RESET', 'Admin-Aenderungen verworfen');
+  try{
+    const res = await fetch('strafen.json', { cache: 'no-store' });
+    const frisch = await res.json();
+    alleVerstoesse = normalisiereVerstoesse(frisch.verstoesse || []);
+    speichereAdminDaten();
+    logAction('RESET', 'Datenbank auf strafen.json zurueckgesetzt');
+  }catch(err){
+    console.error(err);
+    alert('Reset fehlgeschlagen — strafen.json konnte nicht geladen werden.');
+    return;
+  }
   render();
   renderCommandCenter();
   renderAdminListe();
@@ -651,7 +591,7 @@ function renderCommandCenter(){
   dashMaxLevel.textContent = String(maxLevel);
   dashSession.textContent = isAdminLoggedIn() ? 'ON' : 'OFF';
   dashSessionMeta.textContent = isAdminLoggedIn() ? `admin · ${new Date().toLocaleTimeString('de-DE')} Uhr` : 'nicht eingeloggt';
-  dashStorage.textContent = backup ? 'BACKUP' : (localStorage.getItem(STORAGE_KEY) ? 'LOCAL' : 'JSON');
+  dashStorage.textContent = backup ? 'BACKUP' : 'FIRESTORE';
   [dashRestoreBtn, restoreBtn].forEach((btn) => {
     btn.disabled = !backup;
     btn.title = backup ? `Backup: ${formatiereBackupZeit(backup)}` : 'Noch kein Backup vorhanden';
