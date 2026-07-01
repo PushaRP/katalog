@@ -44,6 +44,11 @@ const newAdminPassEl = document.getElementById('newAdminPass');
 const repeatAdminPassEl = document.getElementById('repeatAdminPass');
 const changeAdminPassBtn = document.getElementById('changeAdminPassBtn');
 const passwordStatusEl = document.getElementById('passwordStatus');
+const currentTeamPassEl = document.getElementById('currentTeamPass');
+const newTeamPassEl = document.getElementById('newTeamPass');
+const repeatTeamPassEl = document.getElementById('repeatTeamPass');
+const changeTeamPassBtn = document.getElementById('changeTeamPassBtn');
+const teamPasswordStatusEl = document.getElementById('teamPasswordStatus');
 const shortcutLogin = document.getElementById('shortcutLogin');
 const shortcutCloseBtn = document.getElementById('shortcutCloseBtn');
 const shortcutAdminUserEl = document.getElementById('shortcutAdminUser');
@@ -52,18 +57,23 @@ const shortcutLoginBtn = document.getElementById('shortcutLoginBtn');
 const shortcutLoginError = document.getElementById('shortcutLoginError');
 
 const ADMIN_SESSION_KEY = 'bannkatalog_admin_session_v1';
-const ADMIN_PASS_KEY = 'bannkatalog_admin_pass_v1';
-const ADMIN_PASS_BASE_KEY = 'bannkatalog_admin_pass_base_v1';
-const LOG_KEY = 'bannkatalog_admin_log_v1';
-const BACKUP_KEY = 'bannkatalog_admin_backup_v1';
 const ADMIN_USER = 'admin';
 const DEFAULT_ADMIN_PASS = 'pushadmin';
+const DEFAULT_TEAM_PASS = 'pushateam';
 
 let grundDaten = { stand: '', verstoesse: [], hinweise: [] };
 let alleVerstoesse = [];
 let pendingAdminAction = 'manage';
 let draggedIndex = null;
 let dragPlaceAfter = false;
+let firebaseDb = null;
+let firebaseDocRef = null;
+let firebaseReady = false;
+let applyingRemoteData = false;
+let adminPass = DEFAULT_ADMIN_PASS;
+let teamPass = DEFAULT_TEAM_PASS;
+let backupDaten = null;
+let activityLog = [];
 
 const LEVEL_FARBE = {
   1: { color: '#e0982f', glow: 'rgba(224,152,47,.45)', bg: 'rgba(224,152,47,.07)' },
@@ -77,26 +87,20 @@ init();
 
 async function init(){
   try{
-    const snap = await KATALOG_DOC.get();
-
-    if (snap.exists) {
-      const daten = snap.data();
-      grundDaten = daten;
-      alleVerstoesse = normalisiereVerstoesse(daten.verstoesse || []);
-    } else {
-      const res = await fetch('strafen.json', { cache: 'no-store' });
-      grundDaten = await res.json();
-      alleVerstoesse = normalisiereVerstoesse(grundDaten.verstoesse || []);
-      await KATALOG_DOC.set({
-        stand: grundDaten.stand || new Date().toISOString().slice(0, 10),
-        verstoesse: alleVerstoesse,
-        hinweise: grundDaten.hinweise || []
-      });
-    }
-
+    const res = await fetch('strafen.json', { cache: 'no-store' });
+    grundDaten = await res.json();
+    const remoteDaten = await initFirebaseSync();
+    alleVerstoesse = remoteDaten?.verstoesse || normalisiereVerstoesse(grundDaten.verstoesse || []);
+    if (remoteDaten?.hinweise?.length) grundDaten.hinweise = remoteDaten.hinweise;
+    if (remoteDaten?.adminPass) adminPass = remoteDaten.adminPass;
+    if (remoteDaten?.teamPass) teamPass = remoteDaten.teamPass;
     renderHinweise(grundDaten.hinweise || []);
+    if (firebaseReady && !remoteDaten?.hasStartDaten) {
+      await schreibeStartdatenInFirebase();
+    }
+    starteFirebaseLiveSync();
   }catch(err){
-    grid.innerHTML = '<p class="empty">Verbindung zur Datenbank fehlgeschlagen. Pruefe Firestore-Regeln und Internetverbindung.</p>';
+    grid.innerHTML = '<p class="empty">Daten konnten nicht geladen werden. Pruefe, ob strafen.json vorhanden ist.</p>';
     console.error(err);
     return;
   }
@@ -104,22 +108,6 @@ async function init(){
   render();
   bindeEvents();
   updateAdminControls();
-  starteLiveSync();
-}
-
-function starteLiveSync(){
-  KATALOG_DOC.onSnapshot((snap) => {
-    if (!snap.exists) return;
-    const daten = snap.data();
-    grundDaten = daten;
-    alleVerstoesse = normalisiereVerstoesse(daten.verstoesse || []);
-    renderHinweise(daten.hinweise || []);
-    render();
-    renderCommandCenter();
-    renderAdminListe();
-  }, (err) => {
-    console.error('Live-Sync Fehler:', err);
-  });
 }
 
 function bindeEvents(){
@@ -144,6 +132,7 @@ function bindeEvents(){
   dashResetBtn.addEventListener('click', resetAdminDaten);
   clearLogBtn.addEventListener('click', clearActivityLog);
   changeAdminPassBtn.addEventListener('click', aendereAdminPasswort);
+  changeTeamPassBtn.addEventListener('click', aendereTeamPasswort);
   shortcutLoginBtn.addEventListener('click', doShortcutLogin);
   shortcutCloseBtn.addEventListener('click', hideShortcutLogin);
   shortcutAdminPasswordEl.addEventListener('keydown', (ev) => {
@@ -202,42 +191,157 @@ function sortiereNachSternen(){
   renderAdminListe();
 }
 
-function speichereAdminDaten(){
-  const payload = {
+function getFirebaseSettings(){
+  return window.PUSHA_FIREBASE || {};
+}
+
+function istFirebaseKonfiguriert(settings){
+  return Boolean(
+    settings.enabled &&
+    settings.config &&
+    settings.config.apiKey &&
+    settings.config.projectId &&
+    !String(settings.config.apiKey).includes('HIER_EINTRAGEN') &&
+    !String(settings.config.projectId).includes('HIER_EINTRAGEN') &&
+    window.firebase?.initializeApp &&
+    window.firebase?.firestore
+  );
+}
+
+async function initFirebaseSync(){
+  const settings = getFirebaseSettings();
+  if (!istFirebaseKonfiguriert(settings)) return null;
+
+  try{
+    if (!window.firebase.apps.length) {
+      window.firebase.initializeApp(settings.config);
+    }
+    firebaseDb = window.firebase.firestore();
+    firebaseDocRef = firebaseDb
+      .collection(settings.collection || 'ban_katalog')
+      .doc(settings.dataDoc || 'live');
+    firebaseReady = true;
+
+    const snapshot = await firebaseDocRef.get();
+    if (!snapshot.exists) return { hasStartDaten: false };
+
+    const data = snapshot.data() || {};
+
+    return {
+      verstoesse: normalisiereVerstoesse(data.verstoesse || []),
+      hinweise: Array.isArray(data.hinweise) ? data.hinweise : [],
+      adminPass: data.adminPass ? String(data.adminPass) : DEFAULT_ADMIN_PASS,
+      teamPass: data.teamPass ? String(data.teamPass) : DEFAULT_TEAM_PASS,
+      hasStartDaten: Array.isArray(data.verstoesse) && data.verstoesse.length > 0
+    };
+  }catch(err){
+    firebaseReady = false;
+    console.warn('Firebase konnte nicht gestartet werden, lokaler Modus aktiv:', err);
+    return null;
+  }
+}
+
+function baueFirebaseDaten(){
+  return {
     stand: new Date().toISOString().slice(0, 10),
+    updatedAt: new Date().toISOString(),
     verstoesse: alleVerstoesse,
-    hinweise: grundDaten.hinweise || []
+    hinweise: grundDaten.hinweise || [],
+    adminPass: getAdminPass(),
+    teamPass: getTeamPass()
   };
-  KATALOG_DOC.set(payload).catch((err) => {
-    console.error('Speichern in Firestore fehlgeschlagen:', err);
-    alert('Speichern fehlgeschlagen — Internetverbindung oder Firestore-Regeln pruefen.');
+}
+
+function getHeuteId(){
+  return new Date().toISOString().slice(0, 10);
+}
+
+async function speichereTagesBackup(daten){
+  if (!firebaseReady || !firebaseDb) return;
+
+  const settings = getFirebaseSettings();
+  const backupCollection = settings.backupCollection || 'ban_katalog_backups';
+  const backupRef = firebaseDb.collection(backupCollection).doc(getHeuteId());
+  const backupDaten = {
+    ...daten,
+    backupDate: getHeuteId(),
+    backupType: 'daily',
+    sourceDoc: `${settings.collection || 'ban_katalog'}/${settings.dataDoc || 'live'}`
+  };
+
+  await backupRef.set(backupDaten, { merge: true });
+}
+
+async function schreibeStartdatenInFirebase(){
+  if (!firebaseReady || !firebaseDocRef) return;
+  alleVerstoesse = normalisiereVerstoesse(grundDaten.verstoesse || []);
+  adminPass = adminPass || DEFAULT_ADMIN_PASS;
+  teamPass = teamPass || DEFAULT_TEAM_PASS;
+  await speichereFirebaseDaten();
+  logAction('SEED', `${alleVerstoesse.length} Startdaten in Firestore geschrieben`);
+}
+
+async function speichereFirebaseDaten(){
+  if (!firebaseReady || !firebaseDocRef || applyingRemoteData) return;
+  try{
+    const daten = baueFirebaseDaten();
+    await firebaseDocRef.set(daten, { merge: true });
+    await speichereTagesBackup(daten);
+  }catch(err){
+    console.warn('Firebase speichern fehlgeschlagen, lokale Daten bleiben erhalten:', err);
+  }
+}
+
+function starteFirebaseLiveSync(){
+  if (!firebaseReady || !firebaseDocRef) return;
+  firebaseDocRef.onSnapshot((snapshot) => {
+    if (!snapshot.exists) return;
+    const data = snapshot.data() || {};
+    const remoteVerstoesse = normalisiereVerstoesse(data.verstoesse || []);
+    if (!remoteVerstoesse.length) return;
+
+    const currentJson = JSON.stringify(alleVerstoesse);
+    const remoteJson = JSON.stringify(remoteVerstoesse);
+    const remoteAdminPass = data.adminPass ? String(data.adminPass) : adminPass;
+    const remoteTeamPass = data.teamPass ? String(data.teamPass) : teamPass;
+    if (currentJson === remoteJson && remoteAdminPass === adminPass && remoteTeamPass === teamPass) return;
+
+    applyingRemoteData = true;
+    alleVerstoesse = remoteVerstoesse;
+    if (Array.isArray(data.hinweise)) grundDaten.hinweise = data.hinweise;
+    adminPass = remoteAdminPass;
+    teamPass = remoteTeamPass;
+    speichereAdminDaten();
+    renderHinweise(grundDaten.hinweise || []);
+    render();
+    renderCommandCenter();
+    renderAdminListe();
+    applyingRemoteData = false;
+  }, (err) => {
+    console.warn('Firebase Live-Sync fehlgeschlagen:', err);
   });
 }
 
+function speichereAdminDaten(){
+  speichereFirebaseDaten();
+}
+
 function erstelleBackup(reason = 'MANUELL'){
-  const backup = {
+  backupDaten = {
     ts: Date.now(),
     reason,
     stand: new Date().toISOString().slice(0, 10),
     verstoesse: alleVerstoesse,
     hinweise: grundDaten.hinweise || []
   };
-  localStorage.setItem(BACKUP_KEY, JSON.stringify(backup));
-  return backup;
+  return backupDaten;
 }
 
 function ladeBackup(){
-  try{
-    const raw = localStorage.getItem(BACKUP_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    const verstoesse = normalisiereVerstoesse(parsed.verstoesse || []);
-    if (!verstoesse.length) return null;
-    return { ...parsed, verstoesse };
-  }catch(err){
-    console.warn('Backup konnte nicht gelesen werden:', err);
-    return null;
-  }
+  if (!backupDaten) return null;
+  const verstoesse = normalisiereVerstoesse(backupDaten.verstoesse || []);
+  if (!verstoesse.length) return null;
+  return { ...backupDaten, verstoesse };
 }
 
 function formatiereBackupZeit(backup){
@@ -263,20 +367,20 @@ function isAdminLoggedIn(){
 }
 
 function getAdminPass(){
-  const savedBasePass = localStorage.getItem(ADMIN_PASS_BASE_KEY);
-  if (savedBasePass && savedBasePass !== DEFAULT_ADMIN_PASS) {
-    localStorage.removeItem(ADMIN_PASS_KEY);
-    localStorage.setItem(ADMIN_PASS_BASE_KEY, DEFAULT_ADMIN_PASS);
-    return DEFAULT_ADMIN_PASS;
-  }
+  return adminPass || DEFAULT_ADMIN_PASS;
+}
 
-  return localStorage.getItem(ADMIN_PASS_KEY) || DEFAULT_ADMIN_PASS;
+function getTeamPass(){
+  return teamPass || DEFAULT_TEAM_PASS;
 }
 
 function clearPasswordForm(){
   currentAdminPassEl.value = '';
   newAdminPassEl.value = '';
   repeatAdminPassEl.value = '';
+  currentTeamPassEl.value = '';
+  newTeamPassEl.value = '';
+  repeatTeamPassEl.value = '';
 }
 
 function setPasswordStatus(message, type = 'error'){
@@ -308,12 +412,49 @@ function aendereAdminPasswort(){
     return;
   }
 
-  localStorage.setItem(ADMIN_PASS_KEY, newPass);
-  localStorage.setItem(ADMIN_PASS_BASE_KEY, DEFAULT_ADMIN_PASS);
+  adminPass = newPass;
   sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ user: ADMIN_USER, ts: Date.now() }));
   clearPasswordForm();
   setPasswordStatus('Passwort wurde geaendert.', 'ok');
   logAction('PASS', 'Admin Passwort geaendert');
+  speichereFirebaseDaten();
+  renderCommandCenter();
+}
+
+function setTeamPasswordStatus(message, type = 'error'){
+  teamPasswordStatusEl.textContent = message;
+  teamPasswordStatusEl.hidden = false;
+  teamPasswordStatusEl.classList.toggle('is-ok', type === 'ok');
+}
+
+function aendereTeamPasswort(){
+  if (!requireAdmin()) return;
+
+  const currentPass = currentTeamPassEl.value;
+  const newPass = newTeamPassEl.value.trim();
+  const repeatPass = repeatTeamPassEl.value.trim();
+
+  if (currentPass !== getTeamPass()) {
+    setTeamPasswordStatus('Aktuelles Startpasswort ist falsch.');
+    logAction('TEAM-PASS-FAIL', 'Falsches aktuelles Startpasswort');
+    return;
+  }
+
+  if (newPass.length < 4) {
+    setTeamPasswordStatus('Neues Startpasswort muss mindestens 4 Zeichen haben.');
+    return;
+  }
+
+  if (newPass !== repeatPass) {
+    setTeamPasswordStatus('Neues Startpasswort stimmt nicht ueberein.');
+    return;
+  }
+
+  teamPass = newPass;
+  clearPasswordForm();
+  setTeamPasswordStatus('Startpasswort wurde geaendert.', 'ok');
+  logAction('TEAM-PASS', 'Startseiten Passwort geaendert');
+  speichereFirebaseDaten();
   renderCommandCenter();
 }
 
@@ -486,6 +627,7 @@ function zeigeDashboard(){
   adminDashboard.hidden = false;
   clearPasswordForm();
   passwordStatusEl.hidden = true;
+  teamPasswordStatusEl.hidden = true;
   renderCommandCenter();
   renderAdminListe();
   if (pendingAdminAction === 'new') leereForm();
@@ -615,21 +757,13 @@ function loescheEintrag(index){
   leereForm();
 }
 
-async function resetAdminDaten(){
+function resetAdminDaten(){
   if (!requireAdmin()) return;
-  if (!confirm('Alle Aenderungen verwerfen und strafen.json neu in die Datenbank laden?')) return;
+  if (!confirm('Alle Admin-Aenderungen verwerfen und strafen.json neu laden?')) return;
   erstelleBackup('VOR_RESET');
-  try{
-    const res = await fetch('strafen.json', { cache: 'no-store' });
-    const frisch = await res.json();
-    alleVerstoesse = normalisiereVerstoesse(frisch.verstoesse || []);
-    speichereAdminDaten();
-    logAction('RESET', 'Datenbank auf strafen.json zurueckgesetzt');
-  }catch(err){
-    console.error(err);
-    alert('Reset fehlgeschlagen — strafen.json konnte nicht geladen werden.');
-    return;
-  }
+  alleVerstoesse = normalisiereVerstoesse(grundDaten.verstoesse || []);
+  logAction('RESET', 'Admin-Aenderungen verworfen');
+  speichereAdminDaten();
   render();
   renderCommandCenter();
   renderAdminListe();
@@ -680,7 +814,7 @@ function renderCommandCenter(){
   dashMaxLevel.textContent = String(maxLevel);
   dashSession.textContent = isAdminLoggedIn() ? 'ON' : 'OFF';
   dashSessionMeta.textContent = isAdminLoggedIn() ? `admin · ${new Date().toLocaleTimeString('de-DE')} Uhr` : 'nicht eingeloggt';
-  dashStorage.textContent = backup ? 'BACKUP' : 'FIRESTORE';
+  dashStorage.textContent = firebaseReady ? 'FIREBASE' : (backup ? 'BACKUP' : 'JSON');
   [dashRestoreBtn, restoreBtn].forEach((btn) => {
     btn.disabled = !backup;
     btn.title = backup ? `Backup: ${formatiereBackupZeit(backup)}` : 'Noch kein Backup vorhanden';
@@ -689,22 +823,17 @@ function renderCommandCenter(){
 }
 
 function getActivityLog(){
-  try{
-    return JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
-  }catch{
-    return [];
-  }
+  return activityLog;
 }
 
 function logAction(action, detail){
-  const log = getActivityLog();
-  log.unshift({
+  activityLog.unshift({
     ts: Date.now(),
     user: ADMIN_USER,
     action,
     detail
   });
-  localStorage.setItem(LOG_KEY, JSON.stringify(log.slice(0, 80)));
+  activityLog = activityLog.slice(0, 80);
 }
 
 function renderActivityLog(){
@@ -721,7 +850,7 @@ function renderActivityLog(){
 
 function clearActivityLog(){
   if (!requireAdmin()) return;
-  localStorage.removeItem(LOG_KEY);
+  activityLog = [];
   logAction('SECURITY', 'Aktivitaetslog geleert');
   renderCommandCenter();
 }

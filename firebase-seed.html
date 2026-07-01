@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Firebase Startdaten eintragen</title>
+<style>
+  body{
+    margin:0;
+    min-height:100vh;
+    display:grid;
+    place-items:center;
+    background:#0c0707;
+    color:#f3ece8;
+    font-family:Arial, sans-serif;
+  }
+  main{
+    width:min(560px, calc(100vw - 32px));
+    border:1px solid #3a1c1c;
+    border-top:2px solid #e3101f;
+    background:#170d0d;
+    border-radius:8px;
+    padding:26px;
+  }
+  h1{ margin:0 0 10px; font-size:24px; }
+  p{ color:#a88a80; line-height:1.5; }
+  button{
+    border:0;
+    background:#e3101f;
+    color:white;
+    padding:13px 16px;
+    border-radius:4px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  pre{
+    white-space:pre-wrap;
+    margin-top:18px;
+    color:#e0982f;
+    font-size:13px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Firebase Startdaten</h1>
+  <p>Schreibt alle Eintraege aus <code>strafen.json</code> direkt in Firestore. Bestehende Daten im Dokument <code>ban_katalog/live</code> werden dabei ersetzt.</p>
+  <button id="seedBtn">Startdaten in Firestore schreiben</button>
+  <pre id="status">Bereit.</pre>
+</main>
+
+<script src="firebase-config.js?v=3"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script>
+const statusEl = document.getElementById('status');
+const seedBtn = document.getElementById('seedBtn');
+
+seedBtn.addEventListener('click', seedFirestore);
+
+async function seedFirestore(){
+  const settings = window.PUSHA_FIREBASE || {};
+  if (!settings.enabled) {
+    statusEl.textContent = 'Firebase ist in firebase-config.js noch nicht aktiviert: enabled muss true sein.';
+    return;
+  }
+
+  try{
+    statusEl.textContent = 'Lade strafen.json...';
+    const res = await fetch('strafen.json', { cache: 'no-store' });
+    const daten = await res.json();
+
+    statusEl.textContent = 'Verbinde mit Firebase...';
+    if (!firebase.apps.length) firebase.initializeApp(settings.config);
+    const db = firebase.firestore();
+    const ref = db
+      .collection(settings.collection || 'ban_katalog')
+      .doc(settings.dataDoc || 'live');
+
+    const payload = {
+      stand: new Date().toISOString().slice(0, 10),
+      updatedAt: new Date().toISOString(),
+      verstoesse: daten.verstoesse || [],
+      hinweise: daten.hinweise || [],
+      adminPass: 'pushadmin',
+      teamPass: 'pushateam'
+    };
+
+    statusEl.textContent = 'Schreibe Startdaten nach Firestore...';
+    await ref.set(payload);
+    statusEl.textContent = `Fertig. ${payload.verstoesse.length} Eintraege wurden in Firestore geschrieben.\nAdmin: pushadmin\nStartseite: pushateam`;
+  }catch(err){
+    console.error(err);
+    statusEl.textContent = 'Fehler: ' + (err.message || err);
+  }
+}
+</script>
+</body>
+</html>

@@ -32,29 +32,6 @@ const TEAM_PASSWORT = "andereswort";
 
 ⚠️ Nur Sichtschutz, keine echte Sicherheit — der Code liegt öffentlich auf GitHub. Für ein internes Regelwerk reicht das meist aus. Falls die Seite ohnehin für alle Spieler sichtbar sein soll, kannst du `lock.js` und den Lock-Screen-Block aus `index.html` einfach entfernen.
 
-## Firebase-Datenbank (gemeinsamer Zugriff fürs Team)
-
-Der Katalog wird in einer **Firestore-Datenbank** gespeichert statt nur lokal im Browser — Änderungen sind sofort für alle Teammitglieder sichtbar (Live-Sync).
-
-### Einmaliges Setup in der Firebase Console
-
-1. [console.firebase.google.com](https://console.firebase.google.com) → euer Projekt öffnen
-2. Linkes Menü → **Firestore Database** (NICHT "Realtime Database"!) → Datenbank erstellen
-3. Tab **Regeln** → folgendes einfügen und **veröffentlichen**:
-
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /katalog/{docId} {
-      allow read, write: if true;
-    }
-  }
-}
-```
-
-⚠️ Offener Zugriff, kein echtes Login dahinter — für ein internes Team-Tool okay, aber technisch versierte Leute könnten die Datenbank direkt ansprechen. Admin-Passwort-Änderungen bleiben weiterhin lokal im jeweiligen Browser gespeichert (nicht Teil der geteilten Datenbank).
-
 ## Auf GitHub Pages veröffentlichen
 
 1. Neues Repository auf GitHub erstellen (z. B. `ban-katalog`).
@@ -69,3 +46,30 @@ service cloud.firestore {
 python3 -m http.server 8000
 # dann im Browser: http://localhost:8000
 ```
+
+## Firebase aktivieren
+
+Standardmaessig laeuft die Seite lokal. Neue Eintraege, Reihenfolge und Admin-Passwort werden dann nur im aktuellen Browser gespeichert.
+
+Damit alle dieselben Daten sehen, erstelle ein Firebase-Projekt mit Firestore Database und trage die Web-App-Daten in `firebase-config.js` ein:
+
+```js
+window.PUSHA_FIREBASE = {
+  enabled: true,
+  collection: 'ban_katalog',
+  dataDoc: 'live',
+  backupCollection: 'ban_katalog_backups',
+  config: {
+    apiKey: '...',
+    authDomain: '...',
+    projectId: '...',
+    storageBucket: '...',
+    messagingSenderId: '...',
+    appId: '...'
+  }
+};
+```
+
+Danach speichert der Admin-Bereich Eintraege, Reihenfolge, Startseiten-Passwort und Admin-Passwort in Firestore. Im Dashboard steht dann bei Speicher `FIREBASE`.
+
+Bei jeder Aenderung wird zusaetzlich ein Tagesbackup in `ban_katalog_backups` geschrieben, z.B. als Dokument `2026-07-01`. Pro Tag wird dieses Backup mit dem neuesten Stand aktualisiert.
