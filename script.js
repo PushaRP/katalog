@@ -1,3 +1,6 @@
+import { initializeApp } from "firebase/app";
+import { getDatabase, ref, set, onValue } from "firebase/database";
+
 const grid = document.getElementById('cardGrid');
 const searchEl = document.getElementById('search');
 const emptyEl = document.getElementById('emptyState');
@@ -91,6 +94,8 @@ async function init(){
   render();
   bindeEvents();
   updateAdminControls();
+
+  startFirebaseSync();
 }
 
 function bindeEvents(){
@@ -162,15 +167,12 @@ function sortiereAlleVerstoesse(){
   alleVerstoesse = sortiereVerstoesse(alleVerstoesse);
 }
 
-function sortiereNachSternen(){
-  if (!requireAdmin()) return;
-  erstelleBackup('VOR_SORT');
-  sortiereAlleVerstoesse();
-  speichereAdminDaten();
-  logAction('SORT', 'Nach Sternen sortiert');
-  render();
-  renderCommandCenter();
-  renderAdminListe();
+function speichereAdminDaten(){
+  set(dbRef, {
+    stand: new Date().toISOString().slice(0, 10),
+    verstoesse: alleVerstoesse,
+    hinweise: grundDaten.hinweise || []
+  });
 }
 
 function ladeAdminDaten(){
@@ -720,4 +722,24 @@ function escapeHtml(str){
   const div = document.createElement('div');
   div.textContent = str ?? '';
   return div.innerHTML;
+}
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const dbRef = ref(db, "verstoesse");
+
+function startFirebaseSync(){
+  onValue(dbRef, (snapshot) => {
+    const data = snapshot.val();
+
+    if (data && data.verstoesse) {
+      alleVerstoesse = normalisiereVerstoesse(data.verstoesse);
+    } else {
+      alleVerstoesse = [];
+    }
+
+    render();
+    renderAdminListe();
+    renderCommandCenter();
+  });
 }
