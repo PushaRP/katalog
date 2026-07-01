@@ -57,7 +57,7 @@ const ADMIN_PASS_KEY = 'bannkatalog_admin_pass_v1';
 const LOG_KEY = 'bannkatalog_admin_log_v1';
 const BACKUP_KEY = 'bannkatalog_admin_backup_v1';
 const ADMIN_USER = 'admin';
-const DEFAULT_ADMIN_PASS = 'pushadmin';
+const DEFAULT_ADMIN_PASS = '21144518231518124';
 
 let grundDaten = { stand: '', verstoesse: [], hinweise: [] };
 let alleVerstoesse = [];
