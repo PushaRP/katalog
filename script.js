@@ -87,8 +87,7 @@ init();
 
 async function init(){
   try{
-    const res = await fetch('strafen.json', { cache: 'no-store' });
-    grundDaten = await res.json();
+    grundDaten = await ladeGrundDaten();
     const remoteDaten = await initFirebaseSync();
     alleVerstoesse = remoteDaten?.verstoesse || normalisiereVerstoesse(grundDaten.verstoesse || []);
     if (remoteDaten?.hinweise?.length) grundDaten.hinweise = remoteDaten.hinweise;
@@ -108,6 +107,18 @@ async function init(){
   render();
   bindeEvents();
   updateAdminControls();
+}
+
+async function ladeGrundDaten(){
+  try{
+    const res = await fetch('strafen.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`strafen.json HTTP ${res.status}`);
+    return await res.json();
+  }catch(err){
+    console.warn('strafen.json konnte nicht geladen werden, eingebettete Startdaten aktiv:', err);
+    if (typeof DEFAULT_KATALOG_DATEN !== 'undefined') return DEFAULT_KATALOG_DATEN;
+    return { stand: '', verstoesse: [], hinweise: [] };
+  }
 }
 
 function bindeEvents(){
@@ -178,6 +189,21 @@ function sortiereVerstoesse(verstoesse){
 
 function sortiereAlleVerstoesse(){
   alleVerstoesse = sortiereVerstoesse(alleVerstoesse);
+}
+
+function fuegeNachSternGruppeEin(eintrag){
+  const level = begrenzeLevel(eintrag.level);
+  let insertIndex = alleVerstoesse.length;
+
+  for (let i = alleVerstoesse.length - 1; i >= 0; i--){
+    const aktuellesLevel = begrenzeLevel(alleVerstoesse[i].level);
+    if (aktuellesLevel <= level) {
+      insertIndex = i + 1;
+      break;
+    }
+  }
+
+  alleVerstoesse.splice(insertIndex, 0, eintrag);
 }
 
 function sortiereNachSternen(){
@@ -731,7 +757,7 @@ function speichereEintrag(ev){
     alleVerstoesse[index] = eintrag;
     logAction('EDIT', `Eintrag bearbeitet: ${eintrag.verstoss}`);
   } else {
-    alleVerstoesse.push(eintrag);
+    fuegeNachSternGruppeEin(eintrag);
     logAction('ADD', `Eintrag hinzugefuegt: ${eintrag.verstoss}`);
   }
 
