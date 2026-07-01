@@ -54,10 +54,11 @@ const shortcutLoginError = document.getElementById('shortcutLoginError');
 const STORAGE_KEY = 'bannkatalog_admin_daten_v1';
 const ADMIN_SESSION_KEY = 'bannkatalog_admin_session_v1';
 const ADMIN_PASS_KEY = 'bannkatalog_admin_pass_v1';
+const ADMIN_PASS_BASE_KEY = 'bannkatalog_admin_pass_base_v1';
 const LOG_KEY = 'bannkatalog_admin_log_v1';
 const BACKUP_KEY = 'bannkatalog_admin_backup_v1';
 const ADMIN_USER = 'admin';
-const DEFAULT_ADMIN_PASS = '21144518231518124';
+const DEFAULT_ADMIN_PASS = 'pushadmin';
 
 let grundDaten = { stand: '', verstoesse: [], hinweise: [] };
 let alleVerstoesse = [];
@@ -241,6 +242,13 @@ function isAdminLoggedIn(){
 }
 
 function getAdminPass(){
+  const savedBasePass = localStorage.getItem(ADMIN_PASS_BASE_KEY);
+  if (savedBasePass && savedBasePass !== DEFAULT_ADMIN_PASS) {
+    localStorage.removeItem(ADMIN_PASS_KEY);
+    localStorage.setItem(ADMIN_PASS_BASE_KEY, DEFAULT_ADMIN_PASS);
+    return DEFAULT_ADMIN_PASS;
+  }
+
   return localStorage.getItem(ADMIN_PASS_KEY) || DEFAULT_ADMIN_PASS;
 }
 
@@ -280,6 +288,7 @@ function aendereAdminPasswort(){
   }
 
   localStorage.setItem(ADMIN_PASS_KEY, newPass);
+  localStorage.setItem(ADMIN_PASS_BASE_KEY, DEFAULT_ADMIN_PASS);
   sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ user: ADMIN_USER, ts: Date.now() }));
   clearPasswordForm();
   setPasswordStatus('Passwort wurde geaendert.', 'ok');
