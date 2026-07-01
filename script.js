@@ -1,8 +1,3 @@
-console.log("SCRIPT LÄUFT");
-
-import { onSnapshot } from "firebase/firestore";
-import { katalogRef } from "./firebase-config.js";
-
 const grid = document.getElementById('cardGrid');
 const searchEl = document.getElementById('search');
 const emptyEl = document.getElementById('emptyState');
@@ -12,7 +7,7 @@ const hinweiseEl = document.getElementById('hinweiseListe');
 const openAdminBtn = document.getElementById('openAdminBtn');
 const openManageBtn = document.getElementById('openManageBtn');
 const sortByLevelBtn = document.getElementById('sortByLevelBtn');
-const adminToolbar = document.querySelector('.admin-toolbar');F
+const adminToolbar = document.querySelector('.admin-toolbar');
 const adminOverlay = document.getElementById('adminOverlay');
 const closeAdminBtn = document.getElementById('closeAdminBtn');
 const adminTitle = document.getElementById('adminTitle');
@@ -754,20 +749,4 @@ function escapeHtml(str){
   const div = document.createElement('div');
   div.textContent = str ?? '';
   return div.innerHTML;
-}
-
-function startFirebaseSync(){
-  onSnapshot(katalogRef, (docSnap) => {
-    const data = docSnap.data();
-
-    if (data && data.verstoesse) {
-      alleVerstoesse = normalisiereVerstoesse(data.verstoesse);
-    } else {
-      alleVerstoesse = [];
-    }
-
-    render();
-    renderAdminListe();
-    renderCommandCenter();
-  });
 }
