@@ -20,3 +20,4 @@ const db = firebase.firestore();
 // Ein einziges Dokument haelt den kompletten Katalog.
 // Aenderung durch irgendein Teammitglied -> alle anderen sehen es live.
 const KATALOG_DOC = db.collection('katalog').doc('daten');
+const PASSWORT_DOC = db.collection('settings').doc('admin');
